@@ -12,21 +12,23 @@ const NOME = 'Dayane';
    titulo→ legenda curta
    tag   → organico | publi | ugc
    capa  → imagem em assets/img/ (baixada do próprio post)
+   video → (opcional) mp4 em assets/video/. Com ele o card toca o vídeo aqui mesmo,
+           sem depender do embed do Instagram (que fica em branco em muitos navegadores).
 */
 const VIDEOS = [
   /* ---- Parcerias ---- */
-  { url: 'https://www.instagram.com/reel/DXQA4YejfP2/', views: 'Voltfit', titulo: 'Tênis novo pro pré-treino', tag: 'publi', capa: 'assets/img/parceria-7.jpg' },
-  { url: 'https://www.instagram.com/reel/DWy8G7lkX1K/', views: 'Ignis', titulo: 'Moda fitness · nova coleção com cupom', tag: 'publi', capa: 'assets/img/parceria-5.jpg' },
-  { url: 'https://www.instagram.com/reel/DZyLMxyt4Sa/', views: 'Adorável Burger', titulo: 'Quantos hambúrgueres existem aqui?', tag: 'publi', capa: 'assets/img/parceria-4.jpg' },
-  { url: 'https://www.instagram.com/reel/DVQ8HT0kZyi/', views: 'Hakon', titulo: 'Não é só uma blusa, é identidade', tag: 'publi', capa: 'assets/img/parceria-6.jpg' },
-  { url: 'https://www.instagram.com/reel/DdXUfMAtIo5/', views: 'Estética', titulo: 'Preenchimento labial: resultado no final', tag: 'publi', capa: 'assets/img/parceria-1.jpg' },
-  { url: 'https://www.instagram.com/reel/Dc1z_t5x0GP/', views: 'Gaby Pastéis', titulo: 'Pastel quentinho e crocante', tag: 'publi', capa: 'assets/img/parceria-3.jpg' },
+  { url: 'https://www.instagram.com/reel/DXQA4YejfP2/', views: 'Voltfit', titulo: 'Tênis novo pro pré-treino', tag: 'publi', capa: 'assets/img/parceria-7.jpg', video: 'assets/video/parceria-7.mp4' },
+  { url: 'https://www.instagram.com/reel/DWy8G7lkX1K/', views: 'Ignis', titulo: 'Moda fitness · nova coleção com cupom', tag: 'publi', capa: 'assets/img/parceria-5.jpg', video: 'assets/video/parceria-5.mp4' },
+  { url: 'https://www.instagram.com/reel/DZyLMxyt4Sa/', views: 'Adorável Burger', titulo: 'Quantos hambúrgueres existem aqui?', tag: 'publi', capa: 'assets/img/parceria-4.jpg', video: 'assets/video/parceria-4.mp4' },
+  { url: 'https://www.instagram.com/reel/DVQ8HT0kZyi/', views: 'Hakon', titulo: 'Não é só uma blusa, é identidade', tag: 'publi', capa: 'assets/img/parceria-6.jpg', video: 'assets/video/parceria-6.mp4' },
+  { url: 'https://www.instagram.com/reel/DdXUfMAtIo5/', views: 'Estética', titulo: 'Preenchimento labial: resultado no final', tag: 'publi', capa: 'assets/img/parceria-1.jpg', video: 'assets/video/parceria-1.mp4' },
+  { url: 'https://www.instagram.com/reel/Dc1z_t5x0GP/', views: 'Gaby Pastéis', titulo: 'Pastel quentinho e crocante', tag: 'publi', capa: 'assets/img/parceria-3.jpg', video: 'assets/video/parceria-3.mp4' },
   { url: 'https://www.instagram.com/p/DdR3vssGRxy/', views: 'Moda fitness', titulo: 'Conjunto Riva: movimento e conforto', tag: 'publi', capa: 'assets/img/parceria-2.jpg' },
-  { url: 'https://www.instagram.com/reel/DXuIhlLEQAX/', views: 'Voltfit', titulo: 'Puro molho', tag: 'publi', capa: 'assets/img/parceria-8.jpg' },
+  { url: 'https://www.instagram.com/reel/DXuIhlLEQAX/', views: 'Voltfit', titulo: 'Puro molho', tag: 'publi', capa: 'assets/img/parceria-8.jpg', video: 'assets/video/parceria-8.mp4' },
   /* ---- Virais ---- */
-  { url: 'https://www.instagram.com/reel/DOW05rfEQyD/', views: 'Viral', titulo: 'Metas', tag: 'organico', capa: 'assets/img/viral-1.jpg' },
-  { url: 'https://www.instagram.com/reel/DVOKE_OkchZ/', views: 'Viral', titulo: 'Rum', tag: 'organico', capa: 'assets/img/viral-2.jpg' },
-  { url: 'https://www.instagram.com/reel/DWw7pfDjb4E/', views: 'Viral', titulo: 'Ele não mede esforços', tag: 'organico', capa: 'assets/img/viral-3.jpg' }
+  { url: 'https://www.instagram.com/reel/DOW05rfEQyD/', views: 'Viral', titulo: 'Metas', tag: 'organico', capa: 'assets/img/viral-1.jpg', video: 'assets/video/viral-1.mp4' },
+  { url: 'https://www.instagram.com/reel/DVOKE_OkchZ/', views: 'Viral', titulo: 'Rum', tag: 'organico', capa: 'assets/img/viral-2.jpg', video: 'assets/video/viral-2.mp4' },
+  { url: 'https://www.instagram.com/reel/DWw7pfDjb4E/', views: 'Viral', titulo: 'Ele não mede esforços', tag: 'organico', capa: 'assets/img/viral-3.jpg', video: 'assets/video/viral-3.mp4' }
 ];
 
 /* ========================================================= */
@@ -56,6 +58,7 @@ const VIDEOS = [
     el.className = 'card';
     el.dataset.tag = v.tag || '';
     if (v.url) { el.type = 'button'; el.dataset.url = v.url; }
+    if (v.video) el.dataset.video = v.video;
 
     const capa = v.capa
       ? `<img src="${v.capa}" alt="${v.titulo || ''}" loading="lazy" onerror="this.remove()">`
@@ -106,11 +109,14 @@ const VIDEOS = [
   const modalLink = $('#modal-link');
   let lastFocus = null;
 
-  const openModal = url => {
+  const openModal = (url, video) => {
     const embed = embedUrl(url);
-    if (!embed) { window.open(url, '_blank', 'noopener'); return; }
+    if (!video && !embed) { window.open(url, '_blank', 'noopener'); return; }
     lastFocus = document.activeElement;
-    frame.innerHTML = `<iframe src="${embed}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen scrolling="no" title="Vídeo"></iframe>`;
+    frame.innerHTML = video
+      ? `<video src="${video}" controls autoplay playsinline preload="metadata"></video>`
+      : `<iframe src="${embed}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen scrolling="no" title="Vídeo"></iframe>`;
+    frame.classList.toggle('modal__frame--video', !!video);
     modalLink.href = url;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -126,7 +132,7 @@ const VIDEOS = [
 
   grid.addEventListener('click', e => {
     const card = e.target.closest('.card[data-url]');
-    if (card) openModal(card.dataset.url);
+    if (card) openModal(card.dataset.url, card.dataset.video);
   });
   $$('[data-close]').forEach(el => el.addEventListener('click', closeModal));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
