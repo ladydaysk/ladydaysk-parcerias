@@ -1,6 +1,6 @@
 # Site da Dayane · mídia kit
 
-Site de uma página para creator de conteúdo, com foco em métricas e em fechar parcerias com marcas.
+Site de uma página para influencer digital, com foco em métricas e em fechar parcerias com marcas.
 
 Visual próprio, diferente do site da Lauriane: fontes Fraunces + DM Sans, grade de vídeos estilo perfil, bento de métricas com barras, acordeão de formatos. Sem preloader, sem cursor customizado, sem moldura de celular.
 
