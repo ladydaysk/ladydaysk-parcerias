@@ -59,6 +59,14 @@ const VIDEOS = [
     el.dataset.tag = v.tag || '';
     if (v.url) { el.type = 'button'; el.dataset.url = v.url; }
     if (v.video) el.dataset.video = v.video;
+    // Preview: no desktop, ao passar o mouse o card toca o video sem som.
+    if (v.video && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      const pv = document.createElement('video');
+      pv.className = 'card__preview'; pv.muted = true; pv.loop = true; pv.playsInline = true; pv.preload = 'none';
+      el.addEventListener('pointerenter', () => { if (!pv.src) pv.src = v.video; pv.currentTime = 0; pv.play().then(() => el.classList.add('is-previewing')).catch(() => {}); });
+      el.addEventListener('pointerleave', () => { pv.pause(); el.classList.remove('is-previewing'); });
+      el.appendChild(pv);
+    }
 
     const capa = v.capa
       ? `<img src="${v.capa}" alt="${v.titulo || ''}" loading="lazy" onerror="this.remove()">`
@@ -242,44 +250,193 @@ const VIDEOS = [
     requestAnimationFrame(step);
   };
 
-  /* ---------- Reveals ---------- */
-  if (reduced) {
+  /* ================= MOTION ================= */
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const preloader = $('.preloader');
+  const hidePreloader = () => { if (preloader) preloader.style.display = 'none'; document.body.classList.remove('is-loading'); };
+
+  if (reduced || !hasGsap) {
+    hidePreloader();
     $$('[data-bar]').forEach(fillBar);
+    $$('[data-countup]').forEach(countUp);
     return;
   }
 
-  if (hasGsap) {
-    gsap.registerPlugin(ScrollTrigger);
-    gsap.set('.reveal', { autoAlpha: 0, y: 28 });
-    ScrollTrigger.batch('.reveal', {
-      start: 'top 90%',
-      onEnter: batch => gsap.to(batch, { autoAlpha: 1, y: 0, duration: .9, ease: 'power3.out', stagger: .07, overwrite: true })
-    });
-    gsap.from('.hero__text > *', { autoAlpha: 0, y: 26, duration: .9, ease: 'power3.out', stagger: .09, delay: .1 });
-    gsap.from('.tile', { autoAlpha: 0, y: 40, duration: 1.1, ease: 'power3.out', stagger: .12, delay: .25 });
-    // Sem animacao de entrada nos cards: o tween era morto antes de rodar e a
-    // grade ficava em branco (opacity 0 inline pra sempre). Os cards ja nascem
-    // visiveis; so o cabecalho da secao usa o reveal.
-    gsap.from('.spark li', {
-      scaleY: 0, duration: .9, ease: 'power3.out', stagger: .06,
-      scrollTrigger: { trigger: '.spark', start: 'top 92%' }
-    });
-    $$('[data-countup]').forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 92%', once: true, onEnter: () => countUp(el) }));
-    $$('[data-bar]').forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 95%', once: true, onEnter: () => fillBar(el) }));
-    window.addEventListener('load', () => ScrollTrigger.refresh());
-    // Rede de seguranca: se alguma animacao nao rodar (aba em segundo plano,
-    // extensao bloqueando, tween morto), nada pode ficar invisivel.
-    setTimeout(() => gsap.set('.reveal, .tile, .hero__text > *', { autoAlpha: 1, clearProps: 'opacity,visibility,transform' }), 4000);
-  } else {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (!e.isIntersecting) return;
-        e.target.classList.add('is-in');
-        if (e.target.dataset.bar) fillBar(e.target);
-        if (e.target.dataset.countup) countUp(e.target);
-        io.unobserve(e.target);
-      });
-    }, { rootMargin: '0px 0px -8% 0px' });
-    $$('[data-bar], [data-countup]').forEach(el => io.observe(el));
+  gsap.registerPlugin(ScrollTrigger);
+  document.body.classList.add('is-loading');
+
+  /* Scroll suave (Lenis) */
+  let lenis = null;
+  if (typeof window.Lenis !== 'undefined') {
+    lenis = new Lenis({ duration: 1.1, easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+    lenis.stop();
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(t => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
   }
+  $$('a[href^="#"]').forEach(a => a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    const target = id.length > 1 ? $(id) : null;
+    if (!target) return;
+    e.preventDefault();
+    if (lenis) lenis.scrollTo(target, { offset: -80, duration: 1.3 });
+    else target.scrollIntoView({ behavior: 'smooth' });
+  }));
+
+  /* Titulos palavra por palavra (mantem <em> e <br>) */
+  const splitWords = el => {
+    const walk = node => {
+      [...node.childNodes].forEach(child => {
+        if (child.nodeType === 3) {
+          const frag = document.createDocumentFragment();
+          child.textContent.split(/(\s+)/).forEach(part => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(' ')); return; }
+            const w = document.createElement('span'); w.className = 'word';
+            const inner = document.createElement('span'); inner.textContent = part;
+            w.appendChild(inner); frag.appendChild(w);
+          });
+          child.replaceWith(frag);
+        } else if (child.nodeType === 1 && child.tagName !== 'BR') walk(child);
+      });
+    };
+    walk(el);
+  };
+  $$('.split').forEach(splitWords);
+
+  /* Preloader -> entrada do hero */
+  const counter = $('[data-count]');
+  const bar = $('.preloader__bar i');
+  const prog = { v: 0 };
+  const pad = n => String(n).padStart(2, '0');
+  const minTime = new Promise(r => setTimeout(r, 1300));
+  const heroImgs = $$('.tile img');
+  const imgsReady = Promise.all(heroImgs.map(i => i.complete ? null : new Promise(r => { i.onload = r; i.onerror = r; })));
+
+  gsap.set('.preloader__line > *', { yPercent: 110 });
+  gsap.set('.preloader__mark span', { yPercent: 120 });
+  gsap.set('.hero__title .word > span', { yPercent: 115 });
+  gsap.set(['.tagline', '.hero__sub', '.hero__ctas', '.hero__stats'], { autoAlpha: 0, y: 24 });
+  gsap.set('.tile', { autoAlpha: 0, y: 90, rotate: i => (i ? 6 : -6) });
+  gsap.set('.nav', { autoAlpha: 0, y: -20 });
+
+  gsap.to('.preloader__mark span', { yPercent: 0, duration: .8, ease: 'expo.out', delay: .1 });
+  gsap.to('.preloader__line > *', { yPercent: 0, duration: 1, ease: 'expo.out', stagger: .12, delay: .15 });
+  const countTween = gsap.to(prog, {
+    v: 88, duration: 1.2, ease: 'power2.out',
+    onUpdate: () => { counter.textContent = pad(Math.round(prog.v)); bar.style.transform = `scaleX(${prog.v / 100})`; }
+  });
+
+  Promise.all([imgsReady, minTime, document.fonts ? document.fonts.ready : null]).then(() => {
+    countTween.kill();
+    gsap.timeline()
+      .to(prog, { v: 100, duration: .3, onUpdate: () => { counter.textContent = '100'; bar.style.transform = `scaleX(${prog.v / 100})`; } })
+      .to('.preloader__line > *', { yPercent: -110, duration: .6, ease: 'expo.in', stagger: .06 }, '+=.1')
+      .to(['.preloader__count', '.preloader__bar', '.preloader__mark'], { autoAlpha: 0, duration: .3 }, '<')
+      .to('.preloader', { yPercent: -100, duration: .9, ease: 'expo.inOut' }, '-=.15')
+      .add(() => { hidePreloader(); if (lenis) lenis.start(); })
+      .to('.hero__title .word > span', { yPercent: 0, duration: 1.2, ease: 'expo.out', stagger: .06 }, '-=.5')
+      .to('.tagline', { autoAlpha: 1, y: 0, duration: .9, ease: 'expo.out' }, '-=1.1')
+      .to('.tile', { autoAlpha: 1, y: 0, rotate: 0, duration: 1.4, ease: 'expo.out', stagger: .12, clearProps: 'transform,opacity,visibility' }, '-=1')
+      .to(['.hero__sub', '.hero__ctas', '.hero__stats'], { autoAlpha: 1, y: 0, duration: .9, ease: 'expo.out', stagger: .08, onComplete: () => $$('.hero__stats [data-countup]').forEach(countUp) }, '-=1.1')
+      .to('.nav', { autoAlpha: 1, y: 0, duration: .8, ease: 'expo.out' }, '-=.9');
+  });
+
+  /* Parallax do topo */
+  gsap.to('.hero__media', { yPercent: -14, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+  gsap.to('.hero__text', { yPercent: 10, autoAlpha: .15, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'center center', end: 'bottom top', scrub: true } });
+
+  /* Ticker acelera com o scroll */
+  const tracks = $$('.ticker__track').map(t => t.getAnimations()[0]).filter(Boolean);
+  let rateTimer;
+  ScrollTrigger.create({
+    onUpdate: self => {
+      const v = Math.min(Math.abs(self.getVelocity()) / 350, 6);
+      tracks.forEach(a => a.playbackRate = 1 + v);
+      clearTimeout(rateTimer);
+      rateTimer = setTimeout(() => tracks.forEach(a => a.playbackRate = 1), 200);
+    }
+  });
+
+  /* Titulos das secoes */
+  $$('.split:not(.hero__title)').forEach(el => {
+    gsap.from($$('.word > span', el), {
+      yPercent: 110, duration: 1.1, ease: 'expo.out', stagger: .05,
+      scrollTrigger: { trigger: el, start: 'top 88%' }
+    });
+  });
+
+  /* Reveals genericos */
+  gsap.set('.reveal', { autoAlpha: 0, y: 40 });
+  ScrollTrigger.batch('.reveal', {
+    start: 'top 90%',
+    onEnter: batch => gsap.to(batch, { autoAlpha: 1, y: 0, duration: 1, ease: 'expo.out', stagger: .07, overwrite: true })
+  });
+
+  /* Cards da grade: sobem em escada (com clearProps — nunca ficam presos invisiveis) */
+  gsap.from('#video-grid .card', {
+    y: 80, autoAlpha: 0, duration: 1.1, ease: 'expo.out', stagger: .06,
+    clearProps: 'transform,opacity,visibility',
+    scrollTrigger: { trigger: '#video-grid', start: 'top 85%', once: true }
+  });
+
+  /* Tilt nos cards (desktop) */
+  if (finePointer) {
+    $$('#video-grid .card').forEach(card => {
+      card.addEventListener('pointermove', e => {
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width - .5;
+        const py = (e.clientY - r.top) / r.height - .5;
+        gsap.to(card, { rotateY: px * 8, rotateX: -py * 8, duration: .5, ease: 'power3.out', transformPerspective: 900 });
+        card.style.setProperty('--mx', `${(px + .5) * 100}%`);
+        card.style.setProperty('--my', `${(py + .5) * 100}%`);
+      });
+      card.addEventListener('pointerleave', () => gsap.to(card, { rotateY: 0, rotateX: 0, duration: .8, ease: 'expo.out' }));
+    });
+  }
+
+  /* Retrato: revela de baixo pra cima + parallax leve */
+  gsap.from('.about__media', { clipPath: 'inset(100% 0 0 0 round 26px)', duration: 1.5, ease: 'expo.inOut', scrollTrigger: { trigger: '.about__media', start: 'top 80%' } });
+  gsap.fromTo('.about__media img', { yPercent: 6, scale: 1.08 }, { yPercent: -6, scale: 1.08, ease: 'none', scrollTrigger: { trigger: '.about__media', start: 'top bottom', end: 'bottom top', scrub: true } });
+  gsap.from('.about__badge', { scale: 0, rotate: -30, duration: 1.1, ease: 'back.out(1.8)', scrollTrigger: { trigger: '.about__media', start: 'top 55%' } });
+
+  /* Contadores e barras */
+  $$('[data-countup]').filter(el => !el.closest('.hero__stats')).forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 92%', once: true, onEnter: () => countUp(el) }));
+  $$('[data-bar]').forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 95%', once: true, onEnter: () => fillBar(el) }));
+  gsap.from('.spark li', { scaleY: 0, transformOrigin: 'bottom', duration: .9, ease: 'expo.out', stagger: .06, scrollTrigger: { trigger: '.spark', start: 'top 92%' } });
+
+  /* Cursor em anel + botoes magneticos (desktop) */
+  if (finePointer) {
+    const cursor = $('.cursor');
+    const xTo = gsap.quickTo(cursor, 'x', { duration: .4, ease: 'power3' });
+    const yTo = gsap.quickTo(cursor, 'y', { duration: .4, ease: 'power3' });
+    window.addEventListener('pointermove', e => { xTo(e.clientX); yTo(e.clientY); cursor.style.opacity = 1; });
+    document.addEventListener('pointerleave', () => cursor.style.opacity = 0);
+    $$('a, button, summary, .chip').forEach(el => {
+      el.addEventListener('pointerenter', () => cursor.classList.add('is-link'));
+      el.addEventListener('pointerleave', () => cursor.classList.remove('is-link'));
+    });
+    $$('#video-grid .card[data-video]').forEach(el => {
+      el.addEventListener('pointerenter', () => cursor.classList.add('is-video'));
+      el.addEventListener('pointerleave', () => cursor.classList.remove('is-video'));
+    });
+    $$('.magnetic').forEach(btn => {
+      btn.addEventListener('pointermove', e => {
+        const r = btn.getBoundingClientRect();
+        btn.style.setProperty('--bx', `${(e.clientX - r.left - r.width / 2) * .22}px`);
+        btn.style.setProperty('--by', `${(e.clientY - r.top - r.height / 2) * .3}px`);
+      });
+      btn.addEventListener('pointerleave', () => { btn.style.setProperty('--bx', '0px'); btn.style.setProperty('--by', '0px'); });
+    });
+  }
+
+  window.addEventListener('load', () => ScrollTrigger.refresh());
+
+  // Rede de seguranca: se algo travar (aba em segundo plano, extensao,
+  // CDN fora), nada pode ficar invisivel nem o preloader preso na tela.
+  setTimeout(() => {
+    hidePreloader(); if (lenis) lenis.start();
+    gsap.set('.reveal, .tile, .tagline, .hero__sub, .hero__ctas, .hero__stats, .nav, .word > span, #video-grid .card, .about__media, .about__badge', { autoAlpha: 1, clearProps: 'opacity,visibility,transform,clipPath' });
+    $$('[data-countup]').forEach(countUp);
+  }, 6000);
 })();
