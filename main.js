@@ -257,10 +257,9 @@ const VIDEOS = [
     });
     gsap.from('.hero__text > *', { autoAlpha: 0, y: 26, duration: .9, ease: 'power3.out', stagger: .09, delay: .1 });
     gsap.from('.tile', { autoAlpha: 0, y: 40, duration: 1.1, ease: 'power3.out', stagger: .12, delay: .25 });
-    gsap.from('.card', {
-      autoAlpha: 0, y: 30, duration: .8, ease: 'power3.out', stagger: .05,
-      scrollTrigger: { trigger: '#video-grid', start: 'top 88%' }
-    });
+    // Sem animacao de entrada nos cards: o tween era morto antes de rodar e a
+    // grade ficava em branco (opacity 0 inline pra sempre). Os cards ja nascem
+    // visiveis; so o cabecalho da secao usa o reveal.
     gsap.from('.spark li', {
       scaleY: 0, duration: .9, ease: 'power3.out', stagger: .06,
       scrollTrigger: { trigger: '.spark', start: 'top 92%' }
@@ -268,6 +267,9 @@ const VIDEOS = [
     $$('[data-countup]').forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 92%', once: true, onEnter: () => countUp(el) }));
     $$('[data-bar]').forEach(el => ScrollTrigger.create({ trigger: el, start: 'top 95%', once: true, onEnter: () => fillBar(el) }));
     window.addEventListener('load', () => ScrollTrigger.refresh());
+    // Rede de seguranca: se alguma animacao nao rodar (aba em segundo plano,
+    // extensao bloqueando, tween morto), nada pode ficar invisivel.
+    setTimeout(() => gsap.set('.reveal, .tile, .hero__text > *', { autoAlpha: 1, clearProps: 'opacity,visibility,transform' }), 4000);
   } else {
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => {
